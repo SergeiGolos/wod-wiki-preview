@@ -1,39 +1,50 @@
 # wod-wiki-preview
 
-GitHub Pages deployment pipeline for wod-wiki branch previews.
+GitHub Pages deployment project for the wod-wiki playground.
 
-## Overview
+## What this repo does
 
-This repository automatically builds and deploys preview sites for different branches of wod-wiki:
+- Builds the wod-wiki playground from a selected source branch
+- Deploys the playground bundle to GitHub Pages
+- Supports manual branch selection
+- Supports automatic dispatch from the wod-wiki repo on pushes to `dev`
 
-- **Trigger 1**: Push to `wod-wiki` dev branch → auto-builds and deploys latest dev preview
-- **Trigger 2**: Manual workflow dispatch → build any named branch and publish preview
+## Triggers
 
-## Deployment
-
-All previews are published to GitHub Pages:
-- `https://sergeigolos.github.io/wod-wiki-preview/` — index with active branches
-- `https://sergeigolos.github.io/wod-wiki-preview/previews/<branch-name>/` — specific branch preview
-
-## Workflows
-
-### `preview.yml`
-
-Main workflow:
-- Clones wod-wiki from your account
-- Checks out the specified branch (default: dev)
-- Builds the site
-- Deploys to `/previews/<branch-name>/` on GitHub Pages
-- Updates the branch index
-
-**Manual trigger:**
+### Manual
+Run the workflow in this repo and choose a branch:
 ```bash
 gh workflow run preview.yml -f branch=feature/my-branch
 ```
 
-## Index Page
+### Automatic from wod-wiki
+The wod-wiki repo dispatches this repository on pushes to `dev`.
+The dispatch payload includes the source branch name.
 
-The `index.html` is auto-generated and lists:
-- All active previews with deployment time
-- Links to each branch preview
-- Last build status
+## Pages base path
+
+This repo publishes a GitHub Pages project site, so the playground must be built with:
+- `/wod-wiki-preview/`
+
+That base path is injected by the workflow before building the playground.
+
+## Deployment target
+
+The published site is the playground app, not Storybook.
+
+GitHub Pages URL:
+- `https://sergeigolos.github.io/wod-wiki-preview/`
+- `https://wod.wiki/` is the source project; this repo is only the preview host
+
+## Source build details
+
+The workflow clones:
+- `https://github.com/SergeiGolos/wod-wiki.git`
+
+Then it runs the playground build command from that repo:
+- `bun run build:app`
+
+## Requirements
+
+To enable automatic dispatch from the source repo, add a repository secret in `wod-wiki`:
+- `PREVIEW_REPO_PAT` with permission to trigger repository dispatch events on `wod-wiki-preview`
