@@ -1,0 +1,231 @@
+name: Build & Deploy Preview
+
+on:
+  push:
+    branches:
+      - dev
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch from wod-wiki to preview'
+        required: false
+        default: 'dev'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+
+    steps:
+      - name: Checkout wod-wiki-preview
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Determine branch name
+        id: branch
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            BRANCH="${{ github.event.inputs.branch }}"
+          else
+            BRANCH="${{ github.ref_name }}"
+          fi
+          echo "name=$BRANCH" >> $GITHUB_OUTPUT
+          echo "Branch: $BRANCH"
+
+      - name: Clone wod-wiki
+        run: |
+          git clone --depth 1 --branch ${{ steps.branch.outputs.name }} \
+            https://github.com/${{ github.repository_owner }}/wod-wiki.git \
+            /tmp/wod-wiki
+
+      - name: Install dependencies (wod-wiki)
+        working-directory: /tmp/wod-wiki
+        run: |
+          if [ -f package.json ]; then
+            bun install || npm install
+          fi
+
+      - name: Build wod-wiki
+        working-directory: /tmp/wod-wiki
+        run: |
+          if [ -f package.json ]; then
+            if grep -q '"build"' package.json; then
+              bun run build || npm run build
+            else
+              echo "No build script found in package.json"
+              exit 1
+            fi
+          fi
+
+      - name: Prepare preview output
+        run: |
+          mkdir -p previews/${{ steps.branch.outputs.name }}
+          if [ -d /tmp/wod-wiki/dist ]; then
+            cp -r /tmp/wod-wiki/dist/* previews/${{ steps.branch.outputs.name }}/
+          elif [ -d /tmp/wod-wiki/build ]; then
+            cp -r /tmp/wod-wiki/build/* previews/${{ steps.branch.outputs.name }}/
+          else
+            echo "No build output found (expected dist/ or build/)"
+            exit 1
+          fi
+
+      - name: Generate index page
+        run: |
+          cat > index.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>wod-wiki Previews</title>
+            <style>
+              * { margin: 0; padding: 0; box-sizing: border-box; }
+              body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+                padding: 2rem;
+              }
+              .container {
+                max-width: 1000px;
+                margin: 0 auto;
+                background: white;
+                border-radius: 12px;
+                box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+                overflow: hidden;
+              }
+              .header {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                padding: 3rem 2rem;
+                text-align: center;
+              }
+              .header h1 {
+                font-size: 2.5rem;
+                margin-bottom: 0.5rem;
+              }
+              .header p {
+                opacity: 0.9;
+                font-size: 1.1rem;
+              }
+              .content {
+                padding: 2rem;
+              }
+              .preview-list {
+                display: grid;
+                gap: 1.5rem;
+              }
+              .preview-card {
+                border: 1px solid #e0e0e0;
+                border-radius: 8px;
+                padding: 1.5rem;
+                transition: all 0.3s ease;
+              }
+              .preview-card:hover {
+                border-color: #667eea;
+                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
+              }
+              .branch-name {
+                font-size: 1.3rem;
+                font-weight: 600;
+                color: #333;
+                margin-bottom: 0.5rem;
+                font-family: 'Courier New', monospace;
+              }
+              .preview-meta {
+                font-size: 0.9rem;
+                color: #666;
+                margin-bottom: 1rem;
+              }
+              .preview-link {
+                display: inline-block;
+                padding: 0.75rem 1.5rem;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                text-decoration: none;
+                border-radius: 6px;
+                font-weight: 500;
+                transition: transform 0.2s ease;
+              }
+              .preview-link:hover {
+                transform: translateY(-2px);
+              }
+              .no-previews {
+                text-align: center;
+                padding: 3rem;
+                color: #999;
+              }
+              .footer {
+                background: #f5f5f5;
+                padding: 1rem;
+                text-align: center;
+                font-size: 0.9rem;
+                color: #666;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>🔗 wod-wiki Previews</h1>
+                <p>Branch preview deployment dashboard</p>
+              </div>
+              <div class="content">
+                <div class="preview-list" id="previewList">
+                  <div class="no-previews">No previews available yet. Push to dev or trigger manually.</div>
+                </div>
+              </div>
+              <div class="footer">
+                Generated by GitHub Actions • Last updated: <span id="timestamp"></span>
+              </div>
+            </div>
+            <script>
+              const previewsDir = 'previews/';
+              const timestamp = document.getElementById('timestamp');
+              timestamp.textContent = new Date().toLocaleString();
+
+              // Check for preview directories (basic implementation)
+              // In a real scenario, you'd generate this list server-side or via API
+              const branches = ['dev']; // Will be extended by workflow
+              const list = document.getElementById('previewList');
+
+              if (branches.length > 0) {
+                list.innerHTML = branches.map(branch => `
+                  <div class="preview-card">
+                    <div class="branch-name">${branch}</div>
+                    <div class="preview-meta">Branch preview</div>
+                    <a href="${previewsDir}${branch}/" class="preview-link">View Preview →</a>
+                  </div>
+                `).join('');
+              }
+            </script>
+          </body>
+          </html>
+          EOF
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "deploy: preview for branch ${{ steps.branch.outputs.name }}"
+            git push
+          fi
+
+      - name: Enable GitHub Pages
+        run: |
+          echo "GitHub Pages deployment ready at:"
+          echo "https://github.com/${{ github.repository_owner }}/wod-wiki-preview/settings/pages"
