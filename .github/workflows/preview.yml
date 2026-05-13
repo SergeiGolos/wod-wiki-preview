@@ -68,7 +68,9 @@ jobs:
         env:
           VITE_API_URL: ${{ vars.VITE_API_URL || 'https://wod.wiki/api' }}
           VITE_CAST_APP_ID: ${{ vars.VITE_CAST_APP_ID }}
-          VITE_BASE_PATH: /wod-wiki-preview/
+          # Preview is served from the custom-domain root https://preview.wod.wiki/
+          # so the app must be built with root-relative asset paths.
+          VITE_BASE_PATH: /
         run: bun run build:app
 
       - name: Stage pages output

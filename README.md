@@ -23,17 +23,18 @@ The dispatch payload includes the source branch name.
 
 ## Pages base path
 
-This repo publishes a GitHub Pages project site, so the playground must be built with:
-- `/wod-wiki-preview/`
+This repo is configured with the custom domain `preview.wod.wiki`, which serves from the domain root.
+The playground is therefore built with:
+- `/`
 
-That base path is injected by the workflow before building the playground.
+That root base path is injected by the workflow before building the playground.
 
 ## Deployment target
 
 The published site is the playground app, not Storybook.
 
 GitHub Pages URL:
-- `https://sergeigolos.github.io/wod-wiki-preview/`
+- `https://preview.wod.wiki/`
 - `https://wod.wiki/` is the source project; this repo is only the preview host
 
 ## Source build details
