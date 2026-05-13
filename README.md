@@ -37,6 +37,11 @@ GitHub Pages URL:
 - `https://preview.wod.wiki/`
 - `https://wod.wiki/` is the source project; this repo is only the preview host
 
+### Routing behavior
+
+- Direct deep links use `404.html` as an SPA fallback document.
+- Legacy `https://preview.wod.wiki/wod-wiki-preview/` requests redirect to `/`.
+
 ## Source build details
 
 The workflow clones:

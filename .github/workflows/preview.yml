@@ -78,6 +78,26 @@ jobs:
           rm -rf site
           mkdir -p site
           cp -R /tmp/wod-wiki/playground/dist/. site/
+
+          # SPA fallback for direct deep links on GitHub Pages.
+          cp site/index.html site/404.html
+
+          # Legacy redirect for the previous subpath URL model.
+          mkdir -p site/wod-wiki-preview
+          cat > site/wod-wiki-preview/index.html <<'HTML'
+          <!doctype html>
+          <html>
+            <head>
+              <meta charset="utf-8" />
+              <meta http-equiv="refresh" content="0;url=/" />
+              <title>Redirecting…</title>
+            </head>
+            <body>
+              <script>window.location.replace('/');</script>
+            </body>
+          </html>
+          HTML
+
           touch site/.nojekyll
 
       - name: Configure GitHub Pages
