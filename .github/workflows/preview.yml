@@ -111,3 +111,74 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      # Pages are live immediately after deploy-pages succeeds — no wait needed.
+
+      - name: Install Playwright browsers
+        working-directory: /tmp/wod-wiki
+        run: bun x playwright install --with-deps chromium
+
+      - name: Run preview E2E tests
+        id: preview_e2e
+        working-directory: /tmp/wod-wiki
+        run: bun x playwright test --config playwright.preview.config.ts
+        env:
+          CI: true
+          PLAYWRIGHT_BASE_URL: https://preview.wod.wiki
+
+      - name: Collect preview E2E stats
+        id: preview_stats
+        if: always()
+        working-directory: /tmp/wod-wiki
+        run: |
+          set -euo pipefail
+          report="test-results/preview-e2e-junit.xml"
+          extract_attr() {
+            local attr="$1"
+            local file="$2"
+            sed -n "s/.*${attr}=\"\\([0-9]\\+\\)\".*/\\1/p" "$file" | head -n1
+          }
+          if [ -f "$report" ]; then
+            tests=$(extract_attr "tests" "$report")
+            failures=$(extract_attr "failures" "$report")
+            skipped=$(extract_attr "skipped" "$report")
+          else
+            tests="n/a"
+            failures="n/a"
+            skipped="n/a"
+          fi
+          echo "tests=${tests:-n/a}" >> "$GITHUB_OUTPUT"
+          echo "failures=${failures:-n/a}" >> "$GITHUB_OUTPUT"
+          echo "skipped=${skipped:-n/a}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Playwright HTML report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: preview-playwright-report
+          path: /tmp/wod-wiki/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload E2E screenshots
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: preview-e2e-screenshots
+          path: /tmp/wod-wiki/test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Write preview summary
+        if: always()
+        run: |
+          cat <<EOF >> "$GITHUB_STEP_SUMMARY"
+          ## Preview Deploy + E2E Summary
+
+          - Branch: ${{ steps.branch.outputs.branch }}
+          - Preview URL: https://preview.wod.wiki
+          - Playwright outcome: ${{ steps.preview_e2e.outcome }}
+          - Tests: ${{ steps.preview_stats.outputs.tests }}
+          - Failures: ${{ steps.preview_stats.outputs.failures }}
+          - Skipped: ${{ steps.preview_stats.outputs.skipped }}
+          EOF
